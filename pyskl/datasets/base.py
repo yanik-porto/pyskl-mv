@@ -12,7 +12,7 @@ from mmcv.utils import print_log
 from torch.utils.data import Dataset
 
 from pyskl.smp import auto_mix2
-from ..core import mean_average_precision, mean_class_accuracy, top_k_accuracy
+from ..core import mean_average_precision, mean_class_accuracy, top_k_accuracy, top_k_by_action
 from .pipelines import Compose
 
 
@@ -172,7 +172,7 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
                 metric_options['top_k_accuracy'], **deprecated_kwargs)
 
         metrics = metrics if isinstance(metrics, (list, tuple)) else [metrics]
-        allowed_metrics = ['top_k_accuracy', 'mean_class_accuracy', 'mean_average_precision']
+        allowed_metrics = ['top_k_accuracy', 'mean_class_accuracy', 'mean_average_precision', 'top_k_by_action']
 
         for metric in metrics:
             if metric not in allowed_metrics:
@@ -209,8 +209,9 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
             if metric == 'top_k_by_action':
                 topk_by_act = top_k_by_action(results, gt_labels, 1)
                 log_msg = []
-                for key, val in topk_by_action.items():
-                    log_msg.append('Action #' + label_map[key] + ' : ' + '%.2f' % val)
+                label_map = [x.strip() for x in open("tools/data/label_map/nturgbd_120.txt").readlines()]
+                for key, val in topk_by_act.items():
+                    log_msg.append('Action #' + label_map[key] + ' : ' + '%.2f' % val + '\n')
                 log_msg = ''.join(log_msg)
                 print_log(log_msg, logger=logger)
 
