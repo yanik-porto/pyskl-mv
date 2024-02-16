@@ -145,6 +145,7 @@ def top_k_by_action(scores, labels, k=1):
         topk_by_action[action] = sum(match_by_action[action]) / len(match_by_action[action])
 
     print("top ", k, " by action : ")
+    label_map = [x.strip() for x in open("tools/data/label_map/nturgbd_120.txt").readlines()]
     for key, val in topk_by_action.items():
         print('Action #', label_map[key], ' : ', '%.2f' % val)
 
@@ -161,8 +162,6 @@ def top_k_accuracy(scores, labels, topk=(1, )):
     Returns:
         list[float]: Top k accuracy score for each k.
     """
-    label_map = [x.strip() for x in open("tools/data/label_map/nturgbd_120.txt").readlines()]
-
     res = []
     labels = np.array(labels)[:, np.newaxis]
     for k in topk:
