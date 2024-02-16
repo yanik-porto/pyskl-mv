@@ -206,6 +206,14 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
                 print_log(log_msg, logger=logger)
                 continue
 
+            if metric == 'top_k_by_action':
+                topk_by_act = top_k_by_action(results, gt_labels, 1)
+                log_msg = []
+                for key, val in topk_by_action.items():
+                    log_msg.append('Action #' + label_map[key] + ' : ' + '%.2f' % val)
+                log_msg = ''.join(log_msg)
+                print_log(log_msg, logger=logger)
+
             if metric == 'mean_class_accuracy':
                 mean_acc = mean_class_accuracy(results, gt_labels)
                 eval_results['mean_class_accuracy'] = mean_acc

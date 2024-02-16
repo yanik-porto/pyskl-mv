@@ -121,6 +121,34 @@ def mean_class_accuracy(scores, labels):
 
     return mean_class_acc
 
+def match_array(scores, labels, k=1):
+    max_k_preds = np.argsort(scores, axis=1)[:, -k:][:, ::-1]
+    match_array = np.logical_or.reduce(max_k_preds == labels, axis=1)
+    return match_array
+
+def top_k_by_action(scores, labels, k=1):
+    max_k_preds = np.argsort(scores, axis=1)[:, -k:][:, ::-1]
+
+    match_by_action = {}
+
+    for i in range(len(labels)):
+        label = labels[i][0]
+        pred = max_k_preds[i]
+
+        if label not in match_by_action.keys():
+            match_by_action[label] = []
+        match_by_action[label].append(np.logical_or.reduce(pred == np.array(label)))
+
+    topk_by_action = {}
+    for action in match_by_action.keys():
+        # print(len(match_by_action[action]), " views for action ", label_map[action])
+        topk_by_action[action] = sum(match_by_action[action]) / len(match_by_action[action])
+
+    print("top ", k, " by action : ")
+    for key, val in topk_by_action.items():
+        print('Action #', label_map[key], ' : ', '%.2f' % val)
+
+    return topk_by_action
 
 def top_k_accuracy(scores, labels, topk=(1, )):
     """Calculate top k accuracy score.
@@ -133,11 +161,12 @@ def top_k_accuracy(scores, labels, topk=(1, )):
     Returns:
         list[float]: Top k accuracy score for each k.
     """
+    label_map = [x.strip() for x in open("tools/data/label_map/nturgbd_120.txt").readlines()]
+
     res = []
     labels = np.array(labels)[:, np.newaxis]
     for k in topk:
-        max_k_preds = np.argsort(scores, axis=1)[:, -k:][:, ::-1]
-        match_array = np.logical_or.reduce(max_k_preds == labels, axis=1)
+        match_array = match_array(scores, labels, k)
         topk_acc_score = match_array.sum() / match_array.shape[0]
         res.append(topk_acc_score)
 
