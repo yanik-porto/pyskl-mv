@@ -12,9 +12,11 @@ from mmcv.utils import print_log
 from torch.utils.data import Dataset
 
 from pyskl.smp import auto_mix2
-from ..core import mean_average_precision, mean_class_accuracy, top_k_accuracy, top_k_by_action
+from ..core import mean_average_precision, mean_class_accuracy, top_k_accuracy, top_k_by_action, clustering_by_action
 from .pipelines import Compose
 
+def get_group(dataname):
+        return dataname[0:4] + dataname[8:20]
 
 class BaseDataset(Dataset, metaclass=ABCMeta):
     """Base class for datasets.
@@ -172,15 +174,20 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
                 metric_options['top_k_accuracy'], **deprecated_kwargs)
 
         metrics = metrics if isinstance(metrics, (list, tuple)) else [metrics]
-        allowed_metrics = ['top_k_accuracy', 'mean_class_accuracy', 'mean_average_precision', 'top_k_by_action']
+        allowed_metrics = ['top_k_accuracy', 'mean_class_accuracy', 'mean_average_precision', 'top_k_by_action', 'clustering_of_3_by_action', 'clustering_of_2_by_action']
 
         for metric in metrics:
             if metric not in allowed_metrics:
                 raise KeyError(f'metric {metric} is not supported')
 
         eval_results = OrderedDict()
+        data_infos = [ann['frame_dir'] for ann in self.video_infos]
         gt_labels = [ann['label'] for ann in self.video_infos]
 
+        data_groups = []
+        for dataname in data_infos:
+            data_groups.append(get_group(dataname))
+        assert(len(data_groups) == len(gt_labels))
         for metric in metrics:
             msg = f'Evaluating {metric} ...'
             if logger is None:
@@ -211,6 +218,24 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
                 log_msg = []
                 label_map = [x.strip() for x in open("tools/data/label_map/nturgbd_120.txt").readlines()]
                 for key, val in topk_by_act.items():
+                    log_msg.append('Action #' + label_map[key] + ' : ' + '%.2f' % val + '\n')
+                log_msg = ''.join(log_msg)
+                print_log(log_msg, logger=logger)
+
+            if metric == 'clustering_of_3_by_action':
+                clust_by_act = clustering_by_action(results, gt_labels, data_groups, ncorres=3)
+                log_msg = []
+                label_map = [x.strip() for x in open("tools/data/label_map/nturgbd_120.txt").readlines()]
+                for key, val in clust_by_act.items():
+                    log_msg.append('Action #' + label_map[key] + ' : ' + '%.2f' % val + '\n')
+                log_msg = ''.join(log_msg)
+                print_log(log_msg, logger=logger)
+
+            if metric == 'clustering_of_2_by_action':
+                clust_by_act = clustering_by_action(results, gt_labels, data_groups, ncorres=2)
+                log_msg = []
+                label_map = [x.strip() for x in open("tools/data/label_map/nturgbd_120.txt").readlines()]
+                for key, val in clust_by_act.items():
                     log_msg.append('Action #' + label_map[key] + ' : ' + '%.2f' % val + '\n')
                 log_msg = ''.join(log_msg)
                 print_log(log_msg, logger=logger)

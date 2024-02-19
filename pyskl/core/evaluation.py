@@ -1,7 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import numpy as np
 from mmcv.runner import DistEvalHook as BasicDistEvalHook
-
+from collections import Counter
 
 class DistEvalHook(BasicDistEvalHook):
     greater_keys = [
@@ -146,6 +146,42 @@ def top_k_by_action(scores, labels, k=1):
 
     return topk_by_action
 
+def group_to_action(group):
+    return int(group[-3:])
+
+def clustering_by_action(scores, labels, groups, ncorres=3, k=1):
+    labels = np.array(labels)[:, np.newaxis]
+    max_k_preds = np.argsort(scores, axis=1)[:, -k:][:, ::-1]
+    preds = [pred[0] for pred in max_k_preds]
+
+    pred_by_group = {}
+
+    for pred, label, group in zip(preds, labels, groups):
+        label = label[0] # TODO : check if a match option is necessary
+
+        if group not in pred_by_group.keys():
+            pred_by_group[group] = []
+        pred_by_group[group].append(pred)
+
+    corres_by_action = {}
+    for group in pred_by_group.keys():
+        if len(pred_by_group[group]) != 3:
+            print("Group ", group, " has ", len(pred_by_group[group]), " views")
+
+        action_number = group_to_action(group)
+        if action_number not in corres_by_action.keys():
+            corres_by_action[action_number] = []
+
+        counts = Counter(list(pred_by_group[group]))
+
+        corres_by_action[action_number].append(any(count >= ncorres for count in list(counts.values())))
+
+    for action, corres in corres_by_action.items():
+        corres_by_action[action] = sum(corres) / len(corres)
+
+    return corres_by_action
+
+
 def top_k_accuracy(scores, labels, topk=(1, )):
     """Calculate top k accuracy score.
 
@@ -190,7 +226,7 @@ def mean_average_precision(scores, labels):
     results = [x for x in results if not np.isnan(x)]
     if results == []:
         return np.nan
-    return np.mean(results)
+    return np.mean(results)    
 
 
 def binary_precision_recall_curve(y_score, y_true):
