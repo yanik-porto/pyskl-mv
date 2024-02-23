@@ -36,11 +36,15 @@ class SimpleHead(BaseHead):
             self.dropout = nn.Dropout(p=self.dropout_ratio)
         else:
             self.dropout = None
-        assert mode in ['3D', 'GCN', '2D']
+        assert mode in ['3D', 'GCN', '2D', 'GCNMV']
         self.mode = mode
 
         self.in_c = in_channels
         self.fc_cls = nn.Linear(self.in_c, num_classes)
+
+        n_views = 3
+        n_persons = 2
+        self.mlp_mv = nn.Linear(self.in_c * n_views * n_persons, self.in_c)
 
     def init_weights(self):
         """Initiate the parameters from scratch."""
@@ -85,6 +89,13 @@ class SimpleHead(BaseHead):
                 x = pool(x)
                 x = x.reshape(N, M, C)
                 x = x.mean(dim=1)
+            if self.mode == 'GCNMV':
+                pool = nn.AdaptiveAvgPool2d(1)
+                N, M, C, T, V = x.shape
+                x = x.reshape(N * M, C, T, V)
+                x = pool(x)
+                x = x.reshape(N, M * C)
+                x = self.mlp_mv(x)
 
         assert x.shape[1] == self.in_c
         if self.dropout is not None:
@@ -134,6 +145,24 @@ class GCNHead(SimpleHead):
                          dropout=dropout,
                          init_std=init_std,
                          mode='GCN',
+                         **kwargs)
+        
+@HEADS.register_module()
+class GCNHeadMV(SimpleHead):
+
+    def __init__(self,
+                 num_classes,
+                 in_channels,
+                 loss_cls=dict(type='CrossEntropyLoss'),
+                 dropout=0.,
+                 init_std=0.01,
+                 **kwargs):
+        super().__init__(num_classes,
+                         in_channels,
+                         loss_cls=loss_cls,
+                         dropout=dropout,
+                         init_std=init_std,
+                         mode='GCNMV',
                          **kwargs)
 
 
