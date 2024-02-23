@@ -466,7 +466,46 @@ class FormatGCNInput:
         repr_str = self.__class__.__name__ + f'(num_person={self.num_person}, mode={self.mode})'
         return repr_str
 
+@PIPELINES.register_module()
+class FormatGCNInputMV(FormatGCNInput):
+    """Format final skeleton shape to the given input_format. """
 
+    def __init__(self, num_person=2, mode='zero', num_view=3):
+        super().__init__(num_person, mode)
+        self.num_view = num_view
+
+    def __call__(self, results):
+        """Performs the FormatShape formatting.
+
+        Args:
+            results (dict): The resulting dict to be modified and passed
+                to the next transform in pipeline.
+        """
+        keypoint = results['keypoint']
+
+        if 'keypoint_score' in results:
+            keypoint = np.concatenate((keypoint, results['keypoint_score'][..., None]), axis=-1)
+
+        n_in_person = keypoint.shape[0] // self.num_view
+
+        # M T V C
+        if n_in_person < self.num_person:
+            pad_dim = self.num_person - n_in_person
+            pad = np.zeros((pad_dim, ) + keypoint.shape[1:], dtype=keypoint.dtype)
+            keypoint = np.insert(keypoint, list(range(0,pad_dim * self.num_view)), pad, axis=0)
+
+        # TODO : check to collect only number of person per view
+        elif keypoint.shape[0] > self.num_person*self.num_view:
+            keypoint = keypoint[:self.num_person*self.num_view]
+
+        M, T, V, C = keypoint.shape
+        nc = results.get('num_clips', 1)
+        assert T % nc == 0
+        keypoint = keypoint.reshape((M, nc, T // nc, V, C)).transpose(1, 0, 2, 3, 4)
+        results['keypoint'] = np.ascontiguousarray(keypoint)
+
+        return results
+    
 @PIPELINES.register_module()
 class DecompressPose:
     """Load Compressed Pose
