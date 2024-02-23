@@ -147,7 +147,7 @@ def top_k_by_action(scores, labels, k=1):
     return topk_by_action
 
 def group_to_action(group):
-    return int(group[-3:])
+    return int(group[-3:]) - 1
 
 def clustering_by_action(scores, labels, groups, ncorres=3, k=1):
     labels = np.array(labels)[:, np.newaxis]
@@ -165,8 +165,9 @@ def clustering_by_action(scores, labels, groups, ncorres=3, k=1):
 
     corres_by_action = {}
     for group in pred_by_group.keys():
-        if len(pred_by_group[group]) != 3:
+        if len(pred_by_group[group]) < ncorres:
             print("Group ", group, " has ", len(pred_by_group[group]), " views")
+            continue
 
         action_number = group_to_action(group)
         if action_number not in corres_by_action.keys():
