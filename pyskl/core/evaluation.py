@@ -196,8 +196,8 @@ def top_k_accuracy(scores, labels, topk=(1, )):
     res = []
     labels = np.array(labels)[:, np.newaxis]
     for k in topk:
-        match_array = match_array(scores, labels, k)
-        topk_acc_score = match_array.sum() / match_array.shape[0]
+        matchs = match_array(scores, labels, k)
+        topk_acc_score = matchs.sum() / matchs.shape[0]
         res.append(topk_acc_score)
 
     return res
