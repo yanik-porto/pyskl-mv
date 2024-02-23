@@ -1,9 +1,10 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import mmcv
 import os.path as osp
+import numpy as np
 
 from ..utils import get_root_logger
-from .base import BaseDataset
+from .base import BaseDataset, get_group
 from .builder import DATASETS
 
 
@@ -96,6 +97,81 @@ class PoseDataset(BaseDataset):
             identifier = 'filename' if 'filename' in data[0] else 'frame_dir'
             split = set(split[self.split])
             data = [x for x in data if x[identifier] in split]
+
+        for item in data:
+            # Sometimes we may need to load anno from the file
+            if 'filename' in item:
+                item['filename'] = osp.join(self.data_prefix, item['filename'])
+            if 'frame_dir' in item:
+                item['frame_dir'] = osp.join(self.data_prefix, item['frame_dir'])
+        return data
+
+
+@DATASETS.register_module()
+class PoseDatasetMV(PoseDataset):
+    def __init__(self,
+                 ann_file,
+                 pipeline,
+                 split=None,
+                 valid_ratio=None,
+                 box_thr=None,
+                 class_prob=None,
+                 memcached=False,
+                 mc_cfg=('localhost', 22077),
+                 **kwargs):
+        super().__init__(
+            ann_file, pipeline, split, valid_ratio, box_thr, class_prob, memcached, mc_cfg, **kwargs)
+
+    def create_new_group_annot(self, annot, group):
+        annotmv = annot
+        annotmv['frame_dir'] = group
+        return annotmv
+
+    def data_from_split(self, data, split):
+        datamv = {}
+
+        for annot in data:
+            group = get_group(annot['frame_dir'])
+
+            # do not take data not in this split
+            if group not in split:
+                continue
+            
+            if group not in datamv:
+                # copie first annotation in the group
+                datamv[group] = self.create_new_group_annot(annot, group)
+                continue
+
+            annotmv = datamv[group]
+
+            if annotmv['keypoint'].shape[1] != annot['keypoint'].shape[1] and False:
+                print("watchout, temporal dimension mismatch : ", annotmv['keypoint'].shape[1], " vs ", annot['keypoint_score'].shape[1])
+
+            T = min(annotmv['keypoint'].shape[1], annot['keypoint'].shape[1])
+            annotmv['total_frames'] = T
+            annotmv['keypoint'] = np.concatenate((annotmv['keypoint'][:, :T, :, :], annot['keypoint'][:, :T, :, :]))
+            annotmv['keypoint_score'] = np.concatenate((annotmv['keypoint_score'][:, :T, :], annot['keypoint_score'][:, :T, :]))
+
+        # remove sequence with wrong number of views or persons
+        keytorem = []
+        for key, amv in datamv.items():
+            if amv['keypoint'].shape[0] != 3 and amv['keypoint'].shape[0] != 6:
+                print('watchout: num of view is different from 3 : ', amv['keypoint'].shape[0])
+                keytorem.append(key)
+        for key in keytorem:
+            del datamv[key]
+
+        datamv = list(datamv.values())
+        return datamv
+            
+    def load_pkl_annotations(self):
+        data = mmcv.load(self.ann_file)
+
+        if self.split:
+            split, data = data['split'], data['annotations']
+            identifier = 'filename' if 'filename' in data[0] else 'frame_dir'
+            split = set(split[self.split])
+            data = self.data_from_split(data, split)
 
         for item in data:
             # Sometimes we may need to load anno from the file
