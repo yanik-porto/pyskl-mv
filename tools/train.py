@@ -48,6 +48,10 @@ def parse_args():
         '--compile',
         action='store_true',
         help='whether to compile the model before training / testing (only available in pytorch 2.0)')
+    parser.add_argument(
+        '--pretrained',
+        default=None,
+        help='load a pre-trained model with layers to freeze')
     parser.add_argument('--local_rank', type=int, default=-1)
     parser.add_argument('--local-rank', type=int, default=-1)
     args = parser.parse_args()
@@ -153,6 +157,17 @@ def main():
 
     dist.barrier()
 
+    print("pretrained: ", args.pretrained)
+    if args.pretrained is not None:
+        checkpoint = torch.load(args.pretrained, map_location=lambda storage, loc: storage)
+        model.load_state_dict(checkpoint, strict=False)
+        for name, p in model.named_parameters():
+            if name in checkpoint.keys():
+                p.requires_grad = False
+            else:
+                print(name, " is to be trained")
+
+    # return
     train_model(model, datasets, cfg, validate=args.validate, test=test_option, timestamp=timestamp, meta=meta)
     dist.barrier()
 
