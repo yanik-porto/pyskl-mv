@@ -1,0 +1,150 @@
+walk
+stand
+hand movements
+turn
+interact with/use object
+arm movements
+t pose
+step
+backwards movement
+raising body part
+look
+touch object
+leg movements
+forward movement
+circular movement
+stretch
+jump
+touching body part
+sit
+place something
+take/pick something up
+run
+bend
+throw
+foot movements
+a pose
+stand up
+lowering body part
+sideways movement
+move up/down incline
+action with ball
+kick
+gesture
+head movements
+jog
+grasp object
+waist movements
+lift something
+knee movement
+wave
+move something
+swing body part
+catch
+dance
+lean
+greet
+poses
+touching face
+sports move
+exercise/training
+clean something
+punch
+squat
+scratch
+hop
+play sport
+stumble
+crossing limbs
+perform
+martial art
+balance
+kneel
+shake
+grab body part
+clap
+crouch
+spin
+upper body movements
+knock
+adjust
+crawl
+twist
+move back to original position
+bow
+hit
+touch ground
+shoulder movements
+telephone call
+grab person
+play instrument
+tap
+spread
+skip
+rolling movement
+jump rope
+play catch
+drink
+evade
+support
+point
+side to side movement
+stop
+protect
+wrist movements
+stances
+wait
+shuffle
+lunge
+communicate (vocalise)
+jumping jacks
+rub
+dribble
+swim
+sneak
+to lower a body part
+misc. abstract action
+mix
+limp
+sway
+slide
+cartwheel
+press something
+shrug
+open something
+leap
+trip
+golf
+move misc. body part
+get injured
+sudden movement
+duck
+flap
+salute
+stagger
+draw
+tie
+eat
+style hair
+relax
+pray
+flip
+shivering
+interact with rope
+march
+zombie
+check
+wiggle
+bump
+give something
+yoga
+mime
+wobble
+release
+wash
+stroke
+rocking movement
+swipe
+strafe
+hang
+flail arms
