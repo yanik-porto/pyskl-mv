@@ -12,11 +12,35 @@ from mmcv.utils import print_log
 from torch.utils.data import Dataset
 
 from pyskl.smp import auto_mix2
-from ..core import mean_average_precision, mean_class_accuracy, top_k_accuracy, top_k_by_action, clustering_by_action
+from ..core import mean_average_precision, mean_class_accuracy, top_k_accuracy, top_k_by_action, clustering_by_action, ActionResults
 from .pipelines import Compose
 
+from collections import Counter
+import pandas as pd
+import csv
+
+# def get_group(dataname):
+#         return dataname[0:4] + dataname[8:20]
+
 def get_group(dataname):
-        return dataname[0:4] + dataname[8:20]
+        splits = dataname.split('_')
+        return splits[0] + '_' + splits[1] + '_' + splits[3]
+
+def get_cam(dataname):
+    splits = dataname.split('_')
+    return splits[2]
+ 
+def regroup_views(alldata):
+    datagrouped = {}
+    for data in alldata:
+        group = get_group(data)
+        if group not in datagrouped:
+            datagrouped[group] = set()
+        datagrouped[group].add(data)
+    return datagrouped
+
+def group_to_action(group):
+    return int(group[-3:]) - 1
 
 class BaseDataset(Dataset, metaclass=ABCMeta):
     """Base class for datasets.
@@ -174,7 +198,7 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
                 metric_options['top_k_accuracy'], **deprecated_kwargs)
 
         metrics = metrics if isinstance(metrics, (list, tuple)) else [metrics]
-        allowed_metrics = ['top_k_accuracy', 'mean_class_accuracy', 'mean_average_precision', 'top_k_by_action', 'clustering_of_3_by_action', 'clustering_of_2_by_action']
+        allowed_metrics = ['top_k_accuracy', 'mean_class_accuracy', 'mean_average_precision', 'top_k_by_action', 'clustering_by_action']
 
         for metric in metrics:
             if metric not in allowed_metrics:
@@ -185,8 +209,10 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
         gt_labels = [ann['label'] for ann in self.video_infos]
 
         data_groups = []
+        data_cams = []
         for dataname in data_infos:
             data_groups.append(get_group(dataname))
+            data_cams.append(get_cam(dataname))
         assert(len(data_groups) == len(gt_labels))
         for metric in metrics:
             msg = f'Evaluating {metric} ...'
@@ -222,21 +248,35 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
                 log_msg = ''.join(log_msg)
                 print_log(log_msg, logger=logger)
 
-            if metric == 'clustering_of_3_by_action':
-                clust_by_act = clustering_by_action(results, gt_labels, data_groups, ncorres=3)
-                log_msg = []
-                label_map = [x.strip() for x in open("tools/data/label_map/nturgbd_120.txt").readlines()]
-                for key, val in clust_by_act.items():
-                    log_msg.append('Action #' + label_map[key] + ' : ' + '%.2f' % val + '\n')
-                log_msg = ''.join(log_msg)
-                print_log(log_msg, logger=logger)
+            if metric == 'clustering_by_action':
+                if "clustering_by_action" in metric_options:
+                    if "label_map" in metric_options["clustering_by_action"]:
+                        label_map = [x.strip() for x in open(metric_options["clustering_by_action"]["label_map"]).readlines()]
 
-            if metric == 'clustering_of_2_by_action':
-                clust_by_act = clustering_by_action(results, gt_labels, data_groups, ncorres=2)
+                action_results = {}
+                for il, label in enumerate(label_map):
+                    action_results[il] = ActionResults(label)
+
+                # collect number of sequences by action
+                for group in data_groups:
+                    actid = group_to_action(group)
+                    action_results[actid].nseq += 1
+
+                clust_by_act, camdiff_by_act = clustering_by_action(results, gt_labels, data_groups, data_cams, action_results, ncorres=3)
+                clustering_by_action(results, gt_labels, data_groups, data_cams, action_results, ncorres=2)
                 log_msg = []
-                label_map = [x.strip() for x in open("tools/data/label_map/nturgbd_120.txt").readlines()]
                 for key, val in clust_by_act.items():
                     log_msg.append('Action #' + label_map[key] + ' : ' + '%.2f' % val + '\n')
+                    
+                # save action results to csv
+                with open('camdiff_by_label.csv', 'w', encoding='UTF8') as f:
+                    writer = csv.writer(f, delimiter=';')
+
+                    header = ['label', 'corres2', 'corres3', 'nseq', 'cam1', 'cam2', 'cam3']
+                    writer.writerow(header)
+                    for action, res in action_results.items():
+                        writer.writerow(res.csv_row())
+
                 log_msg = ''.join(log_msg)
                 print_log(log_msg, logger=logger)
 

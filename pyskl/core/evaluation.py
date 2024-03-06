@@ -35,6 +35,23 @@ class DistEvalHook(BasicDistEvalHook):
         assert n is not None
         return self.every_n_epochs(runner, n)
 
+class ActionResults(object):
+    def __init__(self, name):
+        self.name = name
+        self.nseq = 0
+        self.camDiffs = []
+        self.corresN = {}
+    
+    def csv_row(self):
+        corres2 = self.corresN[2] if 2 in self.corresN else -1
+        corres3 = self.corresN[3] if 3 in self.corresN else -1
+        counts = Counter(list(self.camDiffs))
+        print(self.camDiffs)
+        print(counts)
+        cam1 = counts["Camera1"] if "Camera1" in counts else 0
+        cam2 = counts["Camera2"] if "Camera2" in counts else 0
+        cam3 = counts["Camera3"] if "Camera3" in counts else 0
+        return [self.name, corres2, corres3, self.nseq, cam1, cam2, cam3]
 
 def confusion_matrix(y_pred, y_real, normalize=None):
     """Compute confusion matrix.
@@ -149,21 +166,22 @@ def top_k_by_action(scores, labels, k=1):
 def group_to_action(group):
     return int(group[-3:]) - 1
 
-def clustering_by_action(scores, labels, groups, ncorres=3, k=1):
+def clustering_by_action(scores, labels, groups, cams, action_res, ncorres=3, k=1):
     labels = np.array(labels)[:, np.newaxis]
     max_k_preds = np.argsort(scores, axis=1)[:, -k:][:, ::-1]
     preds = [pred[0] for pred in max_k_preds]
 
     pred_by_group = {}
 
-    for pred, label, group in zip(preds, labels, groups):
+    for pred, label, group, cam in zip(preds, labels, groups, cams):
         label = label[0] # TODO : check if a match option is necessary
 
         if group not in pred_by_group.keys():
             pred_by_group[group] = []
-        pred_by_group[group].append(pred)
+        pred_by_group[group].append((pred, cam))
 
     corres_by_action = {}
+    camdiff_by_action = {}
     for group in pred_by_group.keys():
         if len(pred_by_group[group]) < ncorres:
             print("Group ", group, " has ", len(pred_by_group[group]), " views")
@@ -172,15 +190,31 @@ def clustering_by_action(scores, labels, groups, ncorres=3, k=1):
         action_number = group_to_action(group)
         if action_number not in corres_by_action.keys():
             corres_by_action[action_number] = []
+        if action_number not in camdiff_by_action.keys():
+            camdiff_by_action[action_number] = []
 
-        counts = Counter(list(pred_by_group[group]))
+        onlypreds = [pred[0] for pred in pred_by_group[group]]
+        counts = Counter(list(onlypreds))
 
-        corres_by_action[action_number].append(any(count >= ncorres for count in list(counts.values())))
+        enough = any(count >= ncorres for count in list(counts.values()))
+
+        if not enough and ncorres > 2:
+            justOneDiff = any(count == ncorres - 1 for count in list(counts.values()))
+            if justOneDiff:
+                valDiff = next(key for key, count in counts.items() if count == 1)
+                idx = onlypreds.index(valDiff)
+                camDiff = pred_by_group[group][idx][1]
+
+                camdiff_by_action[action_number].append(camDiff)
+                action_res[action_number].camDiffs = camdiff_by_action[action_number]
+
+        corres_by_action[action_number].append(enough)
 
     for action, corres in corres_by_action.items():
         corres_by_action[action] = sum(corres) / len(corres)
+        action_res[action].corresN[ncorres] = sum(corres) / len(corres)
 
-    return corres_by_action
+    return corres_by_action, camdiff_by_action
 
 
 def top_k_accuracy(scores, labels, topk=(1, )):
