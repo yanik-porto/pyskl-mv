@@ -24,11 +24,17 @@ import csv
 
 def get_group(dataname):
         splits = dataname.split('_')
-        return splits[0] + '_' + splits[1] + '_' + splits[3]
+        if len(splits) > 3:
+            return splits[0] + '_' + splits[1] + '_' + splits[3] # babel
+        else:
+            return dataname[0:4] + dataname[8:20] # ntu
 
 def get_cam(dataname):
     splits = dataname.split('_')
-    return splits[2]
+    if len(splits) > 3:
+        return splits[2] # babel
+    else:
+        return dataname[4:8] # ntu
  
 def regroup_views(alldata):
     datagrouped = {}
