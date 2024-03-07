@@ -262,12 +262,13 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
                     actid = group_to_action(group)
                     action_results[actid].nseq += 1
 
-                clust_by_act, camdiff_by_act = clustering_by_action(results, gt_labels, data_groups, data_cams, action_results, ncorres=3)
+                clust_by_act, total_coress = clustering_by_action(results, gt_labels, data_groups, data_cams, action_results, ncorres=3)
                 clustering_by_action(results, gt_labels, data_groups, data_cams, action_results, ncorres=2)
                 log_msg = []
                 for key, val in clust_by_act.items():
                     log_msg.append('Action #' + label_map[key] + ' : ' + '%.2f' % val + '\n')
-                    
+                log_msg.append('Total : ' + '%.2f' % total_coress + '\n')
+
                 # save action results to csv
                 with open('camdiff_by_label.csv', 'w', encoding='UTF8') as f:
                     writer = csv.writer(f, delimiter=';')

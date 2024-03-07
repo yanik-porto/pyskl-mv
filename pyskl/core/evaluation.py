@@ -46,8 +46,6 @@ class ActionResults(object):
         corres2 = self.corresN[2] if 2 in self.corresN else -1
         corres3 = self.corresN[3] if 3 in self.corresN else -1
         counts = Counter(list(self.camDiffs))
-        print(self.camDiffs)
-        print(counts)
         cam1 = counts["Camera1"] if "Camera1" in counts else 0
         cam2 = counts["Camera2"] if "Camera2" in counts else 0
         cam3 = counts["Camera3"] if "Camera3" in counts else 0
@@ -180,6 +178,7 @@ def clustering_by_action(scores, labels, groups, cams, action_res, ncorres=3, k=
             pred_by_group[group] = []
         pred_by_group[group].append((pred, cam))
 
+    corres_all = []
     corres_by_action = {}
     camdiff_by_action = {}
     for group in pred_by_group.keys():
@@ -210,11 +209,16 @@ def clustering_by_action(scores, labels, groups, cams, action_res, ncorres=3, k=
 
         corres_by_action[action_number].append(enough)
 
+        corres_all.append(enough)
+
     for action, corres in corres_by_action.items():
         corres_by_action[action] = sum(corres) / len(corres)
         action_res[action].corresN[ncorres] = sum(corres) / len(corres)
 
     return corres_by_action, camdiff_by_action
+    total_corres = sum(corres_all) / len(corres_all)
+
+    return corres_by_action, total_corres
 
 
 def top_k_accuracy(scores, labels, topk=(1, )):
