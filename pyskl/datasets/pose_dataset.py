@@ -7,6 +7,7 @@ from ..utils import get_root_logger
 from .base import BaseDataset, get_group
 from .builder import DATASETS
 
+from copy import copy
 
 @DATASETS.register_module()
 class PoseDataset(BaseDataset):
@@ -120,10 +121,10 @@ class PoseDatasetMV(PoseDataset):
                  mc_cfg=('localhost', 22077),
                  pair_mode=False,
                  **kwargs):
+        self.pair_mode = pair_mode
         super().__init__(
             ann_file, pipeline, split, valid_ratio, box_thr, class_prob, memcached, mc_cfg, **kwargs)
 
-        self.pair_mode = pair_mode
 
     def create_new_group_annot(self, annot, group):
         annotmv = annot
@@ -134,11 +135,14 @@ class PoseDatasetMV(PoseDataset):
         if other['keypoint'].shape[1] != annot['keypoint'].shape[1] and False:
             print("watchout, temporal dimension mismatch : ", other['keypoint'].shape[1], " vs ", annot['keypoint_score'].shape[1])
 
-        T = min(other['keypoint'].shape[1], annot['keypoint'].shape[1])
-        other['total_frames'] = T
-        other['keypoint'] = np.concatenate((other['keypoint'][:, :T, :, :], annot['keypoint'][:, :T, :, :]))
-        other['keypoint_score'] = np.concatenate((other['keypoint_score'][:, :T, :], annot['keypoint_score'][:, :T, :]))
-        return other
+        concat = copy(other)
+
+        T = min(concat['keypoint'].shape[1], annot['keypoint'].shape[1])
+        concat['total_frames'] = T
+        concat['keypoint'] = np.concatenate((concat['keypoint'][:, :T, :, :], annot['keypoint'][:, :T, :, :]))
+        concat['keypoint_score'] = np.concatenate((concat['keypoint_score'][:, :T, :], annot['keypoint_score'][:, :T, :]))
+        
+        return concat
 
     def data_from_split(self, data, split):
         datamv = {}
@@ -185,6 +189,9 @@ class PoseDatasetMV(PoseDataset):
             if group not in datamv:
                 datamv[group] = []
 
+            if annot['keypoint'].shape[0] != 1 and annot['keypoint'].shape[0] != 2:
+                print("different : ", annot['keypoint'].shape)
+
             datamv[group].append(annot)
 
         idxPairs = {0: 1, 1: 2, 2: 0}
@@ -199,10 +206,16 @@ class PoseDatasetMV(PoseDataset):
                 annot = self.merge_annot_into_other(annot_linked, annot)
                 pairs.append(annot)
 
-        for pair in pairs:
+        idxToRem = []
+        for idx, pair in enumerate(pairs):
             if pair['keypoint'].shape[0] != 2 and pair['keypoint'].shape[0] != 4:
                 print('watchout: num of view is different from 2 : ', pair['keypoint'].shape[0])
+                idxToRem.append(idx)
         
+        for i in range(0, len(idxToRem), -1):
+            idx = idxToRem[i]
+            del pairs[idx]
+
         return pairs
 
     def load_pkl_annotations(self):

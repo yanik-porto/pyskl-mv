@@ -12,7 +12,7 @@ train_pipeline = [
     dict(type='GenSkeFeat', dataset='coco', feats=['j']),
     dict(type='UniformSample', clip_len=100),
     dict(type='PoseDecode'),
-    dict(type='FormatGCNInputMV', num_person=2, num_view=3),
+    dict(type='FormatGCNInputMV', num_person=2, num_view=2),
     dict(type='Collect', keys=['keypoint', 'label'], meta_keys=[]),
     dict(type='ToTensor', keys=['keypoint'])
 ]
@@ -21,7 +21,7 @@ val_pipeline = [
     dict(type='GenSkeFeat', dataset='coco', feats=['j']),
     dict(type='UniformSample', clip_len=100, num_clips=1),
     dict(type='PoseDecode'),
-    dict(type='FormatGCNInputMV', num_person=2, num_view=3),
+    dict(type='FormatGCNInputMV', num_person=2, num_view=2),
     dict(type='Collect', keys=['keypoint', 'label'], meta_keys=[]),
     dict(type='ToTensor', keys=['keypoint'])
 ]
