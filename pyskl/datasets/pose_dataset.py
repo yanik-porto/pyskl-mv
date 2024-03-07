@@ -118,14 +118,27 @@ class PoseDatasetMV(PoseDataset):
                  class_prob=None,
                  memcached=False,
                  mc_cfg=('localhost', 22077),
+                 pair_mode=False,
                  **kwargs):
         super().__init__(
             ann_file, pipeline, split, valid_ratio, box_thr, class_prob, memcached, mc_cfg, **kwargs)
+
+        self.pair_mode = pair_mode
 
     def create_new_group_annot(self, annot, group):
         annotmv = annot
         annotmv['frame_dir'] = group
         return annotmv
+
+    def merge_annot_into_other(self, annot, other):
+        if other['keypoint'].shape[1] != annot['keypoint'].shape[1] and False:
+            print("watchout, temporal dimension mismatch : ", other['keypoint'].shape[1], " vs ", annot['keypoint_score'].shape[1])
+
+        T = min(other['keypoint'].shape[1], annot['keypoint'].shape[1])
+        other['total_frames'] = T
+        other['keypoint'] = np.concatenate((other['keypoint'][:, :T, :, :], annot['keypoint'][:, :T, :, :]))
+        other['keypoint_score'] = np.concatenate((other['keypoint_score'][:, :T, :], annot['keypoint_score'][:, :T, :]))
+        return other
 
     def data_from_split(self, data, split):
         datamv = {}
@@ -144,13 +157,8 @@ class PoseDatasetMV(PoseDataset):
 
             annotmv = datamv[group]
 
-            if annotmv['keypoint'].shape[1] != annot['keypoint'].shape[1] and False:
-                print("watchout, temporal dimension mismatch : ", annotmv['keypoint'].shape[1], " vs ", annot['keypoint_score'].shape[1])
 
-            T = min(annotmv['keypoint'].shape[1], annot['keypoint'].shape[1])
-            annotmv['total_frames'] = T
-            annotmv['keypoint'] = np.concatenate((annotmv['keypoint'][:, :T, :, :], annot['keypoint'][:, :T, :, :]))
-            annotmv['keypoint_score'] = np.concatenate((annotmv['keypoint_score'][:, :T, :], annot['keypoint_score'][:, :T, :]))
+            annotmv = self.merge_annot_into_other(annot, annotmv)
 
         # remove sequence with wrong number of views or persons
         keytorem = []
@@ -163,7 +171,40 @@ class PoseDatasetMV(PoseDataset):
 
         datamv = list(datamv.values())
         return datamv
+    
+    def data_pair_from_split(self, data, split):
+        datamv = {}
+
+        for annot in data:
+            group = get_group(annot['frame_dir'])
+
+            # do not take data not in this split
+            if group not in split:
+                continue
+
+            if group not in datamv:
+                datamv[group] = []
+
+            datamv[group].append(annot)
+
+        idxPairs = {0: 1, 1: 2, 2: 0}
+        pairs = []
+        for group, datas in datamv.items():
+            if len(datas) != 3:
+                print('watchout: num of view is different from 3 : ', len(datas))
             
+            for i in range(3):
+                annot = datas[i]
+                annot_linked = datas[idxPairs[i]]
+                annot = self.merge_annot_into_other(annot_linked, annot)
+                pairs.append(annot)
+
+        for pair in pairs:
+            if pair['keypoint'].shape[0] != 2 and pair['keypoint'].shape[0] != 4:
+                print('watchout: num of view is different from 2 : ', pair['keypoint'].shape[0])
+        
+        return pairs
+
     def load_pkl_annotations(self):
         data = mmcv.load(self.ann_file)
 
@@ -171,7 +212,7 @@ class PoseDatasetMV(PoseDataset):
             split, data = data['split'], data['annotations']
             identifier = 'filename' if 'filename' in data[0] else 'frame_dir'
             split = set(split[self.split])
-            data = self.data_from_split(data, split)
+            data = self.data_pair_from_split(data, split) if self.pair_mode else self.data_from_split(data, split)
 
         for item in data:
             # Sometimes we may need to load anno from the file
