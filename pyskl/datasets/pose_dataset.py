@@ -120,8 +120,10 @@ class PoseDatasetMV(PoseDataset):
                  memcached=False,
                  mc_cfg=('localhost', 22077),
                  pair_mode=False,
+                 is_split_by_group=True,
                  **kwargs):
         self.pair_mode = pair_mode
+        self.is_split_by_group = is_split_by_group
         super().__init__(
             ann_file, pipeline, split, valid_ratio, box_thr, class_prob, memcached, mc_cfg, **kwargs)
 
@@ -199,7 +201,8 @@ class PoseDatasetMV(PoseDataset):
         for group, datas in datamv.items():
             if len(datas) != 3:
                 print('watchout: num of view is different from 3 : ', len(datas))
-            
+                continue
+
             for i in range(3):
                 annot = datas[i]
                 annot_linked = datas[idxPairs[i]]
@@ -212,8 +215,7 @@ class PoseDatasetMV(PoseDataset):
                 print('watchout: num of view is different from 2 : ', pair['keypoint'].shape[0])
                 idxToRem.append(idx)
         
-        for i in range(0, len(idxToRem), -1):
-            idx = idxToRem[i]
+        for idx in sorted(idxToRem, reverse=True):
             del pairs[idx]
 
         return pairs
@@ -225,6 +227,9 @@ class PoseDatasetMV(PoseDataset):
             split, data = data['split'], data['annotations']
             identifier = 'filename' if 'filename' in data[0] else 'frame_dir'
             split = set(split[self.split])
+            if not self.is_split_by_group:
+                split = [get_group(s) for s in split]
+
             data = self.data_pair_from_split(data, split) if self.pair_mode else self.data_from_split(data, split)
 
         for item in data:
