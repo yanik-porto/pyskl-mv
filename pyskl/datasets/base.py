@@ -12,7 +12,7 @@ from mmcv.utils import print_log
 from torch.utils.data import Dataset
 
 from pyskl.smp import auto_mix2
-from ..core import mean_average_precision, mean_class_accuracy, top_k_accuracy, top_k_by_action, clustering_by_action, ActionResults
+from ..core import mean_average_precision, mean_class_accuracy, top_k_accuracy, top_k_by_action, clustering_by_action, ActionResults, confusion_matrix
 from .pipelines import Compose
 
 from collections import Counter
@@ -204,7 +204,7 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
                 metric_options['top_k_accuracy'], **deprecated_kwargs)
 
         metrics = metrics if isinstance(metrics, (list, tuple)) else [metrics]
-        allowed_metrics = ['top_k_accuracy', 'mean_class_accuracy', 'mean_average_precision', 'top_k_by_action', 'clustering_by_action']
+        allowed_metrics = ['top_k_accuracy', 'mean_class_accuracy', 'mean_average_precision', 'top_k_by_action', 'clustering_by_action', 'confusion_matrix']
 
         for metric in metrics:
             if metric not in allowed_metrics:
@@ -220,6 +220,14 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
             data_groups.append(get_group(dataname))
             data_cams.append(get_cam(dataname))
         assert(len(data_groups) == len(gt_labels))
+
+        # print(data_infos)
+        print("metric_options: ", metric_options)
+        if "label_map" in metric_options:
+            label_map = [x.strip() for x in open(metric_options["label_map"]).readlines()]
+        else:
+            label_map = [x.strip() for x in open("tools/data/label_map/nturgbd_120.txt").readlines()]
+
         for metric in metrics:
             msg = f'Evaluating {metric} ...'
             if logger is None:
@@ -248,7 +256,6 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
             if metric == 'top_k_by_action':
                 topk_by_act = top_k_by_action(results, gt_labels, 1)
                 log_msg = []
-                label_map = [x.strip() for x in open("tools/data/label_map/nturgbd_120.txt").readlines()]
                 for key, val in topk_by_act.items():
                     log_msg.append('Action #' + label_map[key] + ' : ' + '%.2f' % val + '\n')
                 log_msg = ''.join(log_msg)
@@ -286,6 +293,14 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
 
                 log_msg = ''.join(log_msg)
                 print_log(log_msg, logger=logger)
+
+            if metric == 'confusion_matrix':
+                pred = np.argmax(results, axis=1)
+                cf_mat = confusion_matrix(pred, gt_labels, num_labels=len(label_map)).astype(int)
+                df = pd.DataFrame(cf_mat)
+                df['Row Header'] = label_map
+                df = df[['Row Header'] + list(df.columns[:-1])]
+                df.to_csv("cf.csv", sep=';', index=False, header=[""] + label_map)#, header=label_map, index=True, index_label=label_map)
 
             if metric == 'mean_class_accuracy':
                 mean_acc = mean_class_accuracy(results, gt_labels)

@@ -51,7 +51,7 @@ class ActionResults(object):
         cam3 = counts["Camera3"] if "Camera3" in counts else 0
         return [self.name, corres2, corres3, self.nseq, cam1, cam2, cam3]
 
-def confusion_matrix(y_pred, y_real, normalize=None):
+def confusion_matrix(y_pred, y_real, normalize=None, num_labels=None):
     """Compute confusion matrix.
 
     Args:
@@ -88,7 +88,7 @@ def confusion_matrix(y_pred, y_real, normalize=None):
             f'y_real dtype must be np.int64, but got {y_real.dtype}')
 
     label_set = np.unique(np.concatenate((y_pred, y_real)))
-    num_labels = len(label_set)
+    num_labels = len(label_set) if num_labels is None else num_labels
     max_label = label_set[-1]
     label_map = np.zeros(max_label + 1, dtype=np.int64)
     for i, label in enumerate(label_set):
