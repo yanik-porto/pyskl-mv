@@ -214,11 +214,17 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
         data_infos = [ann['frame_dir'] for ann in self.video_infos]
         gt_labels = [ann['label'] for ann in self.video_infos]
 
+        isntudata = True
+        splits = data_infos[0].split('_')
+        if len(splits) > 3:
+            isntudata = False
+
         data_groups = []
         data_cams = []
         for dataname in data_infos:
             data_groups.append(get_group(dataname))
             data_cams.append(get_cam(dataname))
+
         assert(len(data_groups) == len(gt_labels))
 
         # print(data_infos)
@@ -268,7 +274,7 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
 
                 action_results = {}
                 for il, label in enumerate(label_map):
-                    action_results[il] = ActionResults(label)
+                    action_results[il] = ActionResults(label, isntudata)
 
                 # collect number of sequences by action
                 for group in data_groups:

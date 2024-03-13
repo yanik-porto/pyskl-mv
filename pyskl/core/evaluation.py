@@ -36,19 +36,21 @@ class DistEvalHook(BasicDistEvalHook):
         return self.every_n_epochs(runner, n)
 
 class ActionResults(object):
-    def __init__(self, name):
+    def __init__(self, name, ntustyle=False):
         self.name = name
         self.nseq = 0
         self.camDiffs = []
         self.corresN = {}
+
+        self.camName = "C00" if ntustyle else "Camera"
     
     def csv_row(self):
         corres2 = self.corresN[2] if 2 in self.corresN else -1
         corres3 = self.corresN[3] if 3 in self.corresN else -1
         counts = Counter(list(self.camDiffs))
-        cam1 = counts["Camera1"] if "Camera1" in counts else 0
-        cam2 = counts["Camera2"] if "Camera2" in counts else 0
-        cam3 = counts["Camera3"] if "Camera3" in counts else 0
+        cam1 = counts[self.camName + "1"] if self.camName + "1" in counts else 0
+        cam2 = counts[self.camName + "2"] if self.camName + "2" in counts else 0
+        cam3 = counts[self.camName + "3"] if self.camName + "3" in counts else 0
         return [self.name, corres2, corres3, self.nseq, cam1, cam2, cam3]
 
 def confusion_matrix(y_pred, y_real, normalize=None, num_labels=None):
@@ -215,7 +217,6 @@ def clustering_by_action(scores, labels, groups, cams, action_res, ncorres=3, k=
         corres_by_action[action] = sum(corres) / len(corres)
         action_res[action].corresN[ncorres] = sum(corres) / len(corres)
 
-    return corres_by_action, camdiff_by_action
     total_corres = sum(corres_all) / len(corres_all)
 
     return corres_by_action, total_corres
