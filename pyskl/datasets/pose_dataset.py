@@ -8,7 +8,7 @@ from ..utils import get_root_logger
 from .base import BaseDataset, get_group
 from .builder import DATASETS
 
-from copy import copy
+import copy
 
 @DATASETS.register_module()
 class PoseDataset(BaseDataset):
@@ -140,7 +140,7 @@ class PoseDatasetMV(PoseDataset):
         if other['keypoint'].shape[1] != annot['keypoint'].shape[1] and False:
             print("watchout, temporal dimension mismatch : ", other['keypoint'].shape[1], " vs ", annot['keypoint_score'].shape[1])
 
-        concat = copy(other)
+        concat = copy.copy(other)
 
         T = min(concat['keypoint'].shape[1], annot['keypoint'].shape[1])
         concat['total_frames'] = T
@@ -268,19 +268,25 @@ class PoseDatasetMV(PoseDataset):
         return data
     
     def merge_results_trans(self, results_trans):
-        return torch.cat(results_trans)
+        imgs = [res["imgs"] for res in results_trans]
+        labels = [res["label"] for res in results_trans]
+
+        assert labels.count(labels[0]) == len(labels), 'not all labels from item are the same : ' + labels
+
+        imgs = torch.cat(imgs)
+        return {"imgs": imgs, "label": labels[0]}
     
     def prepare_train_frames(self, idx):
-        results = copy.deepcopy(self.video_infos[idx])
-
         if self.transform_before_merge:
+            results_groups = self.video_infos[idx]
             results_trans = []
-            for res in results:
-                res_trans = self.prepare_train_frames_for_results(res)
-                print(res_trans.shape)
+            for res in results_groups:
+                results = copy.deepcopy(res)
+                res_trans = self.prepare_train_frames_for_results(results)
                 results_trans.append(res_trans)
             return self.merge_results_trans(results_trans)
 
         else:
+            results = copy.deepcopy(self.video_infos[idx])
             return self.prepare_train_frames_for_results(results)
         
