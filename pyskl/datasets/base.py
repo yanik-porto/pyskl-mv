@@ -334,8 +334,11 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
         return mmcv.dump(results, out)
 
     def prepare_train_frames(self, idx):
-        """Prepare the frames for training given the index."""
         results = copy.deepcopy(self.video_infos[idx])
+        return self.prepare_train_frames_for_results(results)
+
+    def prepare_train_frames_for_results(self, results):
+        """Prepare the frames for training given the index."""
         if self.memcached and 'key' in results:
             from pymemcache import serde
             from pymemcache.client.base import Client
@@ -375,8 +378,11 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
         return self.pipeline(results)
 
     def prepare_test_frames(self, idx):
-        """Prepare the frames for testing given the index."""
         results = copy.deepcopy(self.video_infos[idx])
+        return self.prepare_test_frames_for_results(results)
+
+    def prepare_test_frames_for_results(self, results):
+        """Prepare the frames for testing given the index."""
         if self.memcached and 'key' in results:
             from pymemcache import serde
             from pymemcache.client.base import Client
