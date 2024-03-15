@@ -34,41 +34,7 @@ def parse_args():
         '--out',
         default=None,
         help='output result file in pkl/yaml/json format')
-    parser.add_argument(
-        '--fuse-conv-bn',
-        action='store_true',
-        help='Whether to fuse conv and bn, this will slightly increase'
-        'the inference speed')
-    parser.add_argument(
-        '--eval',
-        type=str,
-        nargs='+',
-        default=['top_k_accuracy', 'mean_class_accuracy'],
-        help='evaluation metrics, which depends on the dataset, e.g.,'
-        ' "top_k_accuracy", "mean_class_accuracy" for video dataset')
-    parser.add_argument(
-        '--tmpdir',
-        help='tmp directory used for collecting results from multiple workers')
-    parser.add_argument(
-        '--average-clips',
-        choices=['score', 'prob', None],
-        default=None,
-        help='average type when averaging test clips')
-    parser.add_argument(
-        '--launcher',
-        choices=['pytorch', 'slurm'],
-        default='pytorch',
-        help='job launcher')
-    parser.add_argument(
-        '--compile',
-        action='store_true',
-        help='whether to compile the model before training / testing (only available in pytorch 2.0)')
-    parser.add_argument('--local_rank', type=int, default=-1)
-    parser.add_argument('--local-rank', type=int, default=-1)
     args = parser.parse_args()
-    if 'LOCAL_RANK' not in os.environ:
-        os.environ['LOCAL_RANK'] = str(args.local_rank)
-
     return args
 
 
@@ -119,16 +85,27 @@ def main():
         if idx >= maxiter:
             break
 
-        keypoint = input_batch["keypoint"]
-        bs, nc = keypoint.shape[:2]
-        keypoint = keypoint.reshape((bs * nc, ) + keypoint.shape[2:])
+        # data = None
+        onepersfeat = None
+        if "keypoint" in input_batch:
+            keypoint = input_batch["keypoint"]
+            bs, nc = keypoint.shape[:2]
+            keypoint = keypoint.reshape((bs * nc, ) + keypoint.shape[2:])
+            data = keypoint
 
-        x = model.extract_feat(keypoint)
+            x = model.extract_feat(data)
+            x = x.detach().numpy()
+            onepersfeat = x[0, 0, :, :, :].reshape(-1)
 
+        elif "imgs" in input_batch:
+            imgs = input_batch["imgs"]
+            imgs = imgs.reshape((-1, ) + imgs.shape[2:])
+            data = imgs
 
-        x = x.detach().numpy()
+            x = model.extract_feat(data)
+            x = x.detach().numpy()
+            onepersfeat = x[0, :, :, :, :].reshape(-1)
 
-        onepersfeat = x[0, 0, :, :, :].reshape(-1)
 
         feats.append(onepersfeat)
         labels.append(label_map[input_batch['label'].detach().numpy()[0]])
