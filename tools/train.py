@@ -52,6 +52,11 @@ def parse_args():
         '--pretrained',
         default=None,
         help='load a pre-trained model with layers to freeze')
+    parser.add_argument(
+        '--finetune',
+        action='store_true',
+        default=False,
+        help='only finetune header')
     parser.add_argument('--local_rank', type=int, default=-1)
     parser.add_argument('--local-rank', type=int, default=-1)
     args = parser.parse_args()
@@ -163,8 +168,17 @@ def main():
         model.load_state_dict(checkpoint, strict=False)
         for name, p in model.named_parameters():
             if name in checkpoint.keys():
+                # p.requires_grad = False
+                continue
+            else:
+                print(name, " is new parameter")
+
+    if args.finetune:
+        for name, p in model.named_parameters():
+            if not 'cls_head' in name:
                 p.requires_grad = False
             else:
+                p.requires_grad = True
                 print(name, " is to be trained")
 
     # return
