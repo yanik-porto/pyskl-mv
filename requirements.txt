@@ -12,3 +12,5 @@ pymemcache
 scipy
 torch>=1.5
 tqdm
+pandas
+yapf==0.32.0
