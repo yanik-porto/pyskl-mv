@@ -151,7 +151,7 @@ class SimpleHead(BaseHead):
             self.dropout = nn.Dropout(p=self.dropout_ratio)
         else:
             self.dropout = None
-        assert mode in ['3D', 'GCN', '2D', 'GCNMV', 'GNNMV', 'ATTNMV']
+        assert mode in ['3D', 'GCN', '2D', 'GCNMV', 'GNNMV', 'ATTNMV', 'GCNMV3D']
         self.mode = mode
 
         self.in_c = in_channels
@@ -169,7 +169,7 @@ class SimpleHead(BaseHead):
 
 
 
-        if self.mode == "GCNMV":
+        if self.mode == "GCNMV" or self.mode == "GCNMV3D":
             self.gcn_mv = GCNMV(self.in_c, hidden_features=hidden_features, out_features=num_classes)
         elif self.mode == "GNNMV":
             self.gcn_mv = GNNMV(self.in_c, hidden_features=hidden_features, out_features=num_classes)
@@ -226,7 +226,7 @@ class SimpleHead(BaseHead):
 
     def init_weights(self):
         """Initiate the parameters from scratch."""
-        if not (self.mode == "GCNMV" or self.mode == "GNNMV" or self.mode == "ATTNMV"):
+        if not (self.mode == "GCNMV" or self.mode == "GNNMV" or self.mode == "ATTNMV" or self.mode == "GCNMV3D"):
             normal_init(self.fc_cls, std=self.init_std)
 
     def forward(self, x):
@@ -329,10 +329,33 @@ class SimpleHead(BaseHead):
                 # x = x.mean(dim=1)
                 # x = x.squeeze(dim=1)
 
+            if self.mode == 'GCNMV3D':
+                pool = nn.AdaptiveAvgPool3d(1)
+                if isinstance(x, tuple) or isinstance(x, list):
+                    x = torch.cat(x, dim=1)
+                x = pool(x)
+
+                # print("after pool: ", x.shape)
+                x = x.squeeze()
+                # print("after squeeze: ", x.shape)
+
+                N, M, C = x.shape
+
+                # x = x.reshape(N * M, C)
+                # print("after reshape: ", x.shape)
+                x = self.gcn_mv(x, self.get_edge_indexes(1))
+                # x = self.gcn_mv(x, self.get_edge_indexes(N))
+                # print("after gcn: ", x.shape)
+
+                # x = x.reshape(N, M, -1)
+
+                x = x.mean(dim=1)
+                x = x.squeeze(dim=1)
 
 
 
-        if self.mode == "GCNMV" or self.mode == "GNNMV" or self.mode == "ATTNMV":
+
+        if self.mode == "GCNMV" or self.mode == "GNNMV" or self.mode == "ATTNMV" or self.mode == "GCNMV3D":
             cls_score = x
         else:
             assert x.shape[1] == self.in_c
@@ -359,6 +382,24 @@ class I3DHead(SimpleHead):
                          dropout=dropout,
                          init_std=init_std,
                          mode='3D',
+                         **kwargs)
+
+@HEADS.register_module()
+class I3DHeadMV(SimpleHead):
+
+    def __init__(self,
+                 num_classes,
+                 in_channels,
+                 loss_cls=dict(type='CrossEntropyLoss'),
+                 dropout=0.5,
+                 init_std=0.01,
+                 **kwargs):
+        super().__init__(num_classes,
+                         in_channels,
+                         loss_cls=loss_cls,
+                         dropout=dropout,
+                         init_std=init_std,
+                         mode='GCNMV3D',
                          **kwargs)
 
 
