@@ -79,11 +79,17 @@ def main():
 
     maxiter = 10000
 
+    onlylabels = [10, 11]
+
     feats = []
     labels = []
     for idx, input_batch in tqdm(enumerate(data_loader)):
         if idx >= maxiter:
             break
+
+        labelid = input_batch['label'].detach().numpy()[0]
+        if labelid not in onlylabels:
+            continue
 
         # data = None
         onepersfeat = None
@@ -108,10 +114,10 @@ def main():
 
 
         feats.append(onepersfeat)
-        labels.append(label_map[input_batch['label'].detach().numpy()[0]])
+        labels.append(label_map[labelid])
 
 
-    print("compute tsne")
+    print("compute tsne for ", len(feats), " sequences")
 
     tsne = TSNE(n_components=2, random_state=42)
 
