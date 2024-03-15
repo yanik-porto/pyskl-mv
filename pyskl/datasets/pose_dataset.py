@@ -53,6 +53,7 @@ class PoseDataset(BaseDataset):
                  class_prob=None,
                  memcached=False,
                  mc_cfg=('localhost', 22077),
+                 transform_before_merge=False,
                  **kwargs):
         modality = 'Pose'
         self.split = split
@@ -77,11 +78,13 @@ class PoseDataset(BaseDataset):
                 assert 'box_score' in item, 'if valid_ratio is a positive number, item should have field `box_score`'
                 anno_inds = (item['box_score'] >= self.box_thr)
                 item['anno_inds'] = anno_inds
-        for item in self.video_infos:
-            item.pop('valid', None)
-            item.pop('box_score', None)
-            if self.memcached:
-                item['key'] = item['frame_dir']
+
+        if not transform_before_merge:
+            for item in self.video_infos:
+                item.pop('valid', None)
+                item.pop('box_score', None)
+                if self.memcached:
+                    item['key'] = item['frame_dir']
 
         logger = get_root_logger()
         logger.info(f'{len(self)} videos remain after valid thresholding')
@@ -122,13 +125,13 @@ class PoseDatasetMV(PoseDataset):
                  mc_cfg=('localhost', 22077),
                  pair_mode=False,
                  is_split_by_group=True,
-                 transform_before_merge=True,
+                 transform_before_merge=False,
                  **kwargs):
         self.pair_mode = pair_mode
         self.is_split_by_group = is_split_by_group
         self.transform_before_merge = transform_before_merge
         super().__init__(
-            ann_file, pipeline, split, valid_ratio, box_thr, class_prob, memcached, mc_cfg, **kwargs)
+            ann_file, pipeline, split, valid_ratio, box_thr, class_prob, memcached, mc_cfg, transform_before_merge, **kwargs)
 
 
     def create_new_group_annot(self, annot, group):
