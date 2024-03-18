@@ -30,10 +30,8 @@ def parse_args():
         description='pyskl test (and eval) a model')
     parser.add_argument('config', help='test config file path')
     parser.add_argument('-C', '--checkpoint', help='checkpoint file', default=None)
-    parser.add_argument(
-        '--out',
-        default=None,
-        help='output result file in pkl/yaml/json format')
+    parser.add_argument('--out', default=None, help='output result file in pkl/yaml/json format')
+    parser.add_argument('--by_cams', action="store_true", default=False, help="Set if data has to be seperated by cams too")
     args = parser.parse_args()
     return args
 
@@ -114,7 +112,11 @@ def main():
 
 
         feats.append(onepersfeat)
-        labels.append(label_map[labelid])
+
+        if args.by_cams:
+            labels.append(label_map[labelid] + '_' + cams[idx])
+        else:
+            labels.append(label_map[labelid])
 
 
     print("compute tsne for ", len(feats), " sequences")
