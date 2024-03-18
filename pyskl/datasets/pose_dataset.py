@@ -189,10 +189,6 @@ class PoseDatasetMV(PoseDataset):
 
     def data_pair_from_split(self, data, split):
 
-
-
-
-
         datamv = self.datamv_from_split(data, split)
 
         idxPairs = {0: 1, 1: 2, 2: 0}
@@ -233,7 +229,8 @@ class PoseDatasetMV(PoseDataset):
 
         return annotsmv
 
-    def merge_pairs(self, pairs):
+    def merge_pairs(self, pairs, removeIfWrong=False):
+        # merge pairs
         pairs_merged = []
         for pair in pairs:
             annot = pair[0]
@@ -241,11 +238,23 @@ class PoseDatasetMV(PoseDataset):
             annot = self.merge_annot_into_other(annot_linked, annot)
             pairs_merged.append(annot)
 
-        for pair in pairs:
-            isdatacorrect = pair['keypoint'].shape[0] != 2 and pair['keypoint'].shape[0] != 4
-            assert isdatacorrect, "wrong keypoint shape : " + str(pair['keypoint'].shape[0])
+        # check valid keypoints shape 
+        idxToRem = []
+        for idx, pair in enumerate(pairs_merged):
+            isdatacorrect = pair['keypoint'].shape[0] == 2 or pair['keypoint'].shape[0] == 4
 
-        return pairs
+            if removeIfWrong:
+                if not isdatacorrect:
+                    idxToRem.append(idx)
+            else:
+                assert isdatacorrect, "wrong keypoint shape : " + str(pair['keypoint'].shape[0])
+
+
+        if removeIfWrong:
+            for idx in sorted(idxToRem, reverse=True):
+                del pairs_merged[idx]
+
+        return pairs_merged
 
     def load_pkl_annotations(self):
         data = mmcv.load(self.ann_file)
@@ -260,7 +269,7 @@ class PoseDatasetMV(PoseDataset):
             data = self.data_pair_from_split(data, split) if self.pair_mode else self.data_from_split(data, split)
 
             if not self.transform_before_merge:
-                data = self.merge_pairs(data) if self.pair_mode else self.merge_datamv(data)
+                data = self.merge_pairs(data, True) if self.pair_mode else self.merge_datamv(data)
 
         for item in data:
             # Sometimes we may need to load anno from the file
