@@ -8,6 +8,35 @@ from .base import BaseHead
 
 from torch_geometric.nn import GCNConv, GraphConv, Linear, global_mean_pool
 
+# network weights initialize
+def xavier_init(size):
+    in_dim = size[0]
+    xavier_stddev = 1. / torch.sqrt(in_dim / 2.)
+    return torch.normal(size=size, std=xavier_stddev)
+    # return tf.random_normal(shape=size, stddev=xavier_stddev)
+
+class CVDM(nn.Module):
+    def __init__(self,  num_classes):
+        self.num_classes = num_classes
+
+        hcg_dim = 100 # graph classifier Cg() hidden layer dimension
+
+        self.activation = nn.LeakyReLU(0.25)
+        self.softmax = nn.Softmax()
+
+        self.Classifier_g_W1 = nn.Parameter(xavier_init((num_classes * num_classes, hcg_dim)))
+        self.Classifier_g_b1 = nn.Parameter(torch.zeros(hcg_dim))
+        self.Classifier_g_W2 = nn.Parameter(xavier_init((hcg_dim, num_classes)))
+        self.Classifier_g_b2 = nn.Parameter(torch.zeros(num_classes))
+
+    def forward(self, p1, p2):
+        W_feature = torch.matmul(p1, p2)
+        C_hw = W_feature.reshape((-1, self.num_classes * self.num_classes))
+        C_h1 = self.activation(torch.matmul(C_hw, self.Classifier_g_W1) + self.Classifier_g_b1)
+        classifier_g_logit = torch.matmul(C_h1, self.Classifier_g_W2) + self.Classifier_g_b2
+        classifier_g_prob = self.softmax(classifier_g_logit)
+        return classifier_g_logit, classifier_g_prob
+
 class AttentionMV(torch.nn.Module):
     def __init__(self, feature_size):
         super(AttentionMV, self).__init__()
@@ -479,3 +508,74 @@ class TSNHead(BaseHead):
                          init_std=init_std,
                          mode='2D',
                          **kwargs)
+
+@HEADS.register_module()
+class MVHeadCVDM(SimpleHead):
+
+    def __init__(self,
+                 num_classes,
+                 in_channels,
+                 loss_cls=dict(type='CrossEntropyLoss'),
+                 dropout=0.,
+                 init_std=0.01,
+                 **kwargs):
+        super().__init__(num_classes,
+                         in_channels,
+                         loss_cls=loss_cls,
+                         dropout=dropout,
+                         init_std=init_std,
+                         mode='CVDM',
+                         **kwargs)
+        
+        self.dropout_ratio = dropout
+        self.init_std = init_std
+        if self.dropout_ratio != 0:
+            self.dropout = nn.Dropout(p=self.dropout_ratio)
+        else:
+            self.dropout = None
+
+        self.in_c = in_channels
+
+        self.n_views = 2
+        self.n_persons = 2
+        self.node_number = self.n_views * self.n_persons
+
+        self.cvdm = CVDM(num_classes=num_classes)
+        self.fc_cls = nn.Linear(self.in_c, num_classes)
+        
+    def init_weights(self):
+        """Initiate the parameters from scratch."""
+        normal_init(self.fc_cls, std=self.init_std)
+
+    def forward(self, x):
+        """Defines the computation performed at every call.
+
+        Args:
+            x (torch.Tensor): The input data.
+
+        Returns:
+            torch.Tensor: The classification scores for input samples.
+        """
+
+        pool = nn.AdaptiveAvgPool2d(1)
+        N, M, C, T, V = x.shape
+        x = x.reshape(N * M, C, T, V)
+        x = pool(x)
+
+        x = x.reshape(N, M, C)
+
+        # reshape by view
+        x = x.reshape(N, self.n_views, self.n_persons, C)
+
+        # mean on persons
+        x = x.mean(dim=2)
+
+        assert x.shape[2] == self.in_c
+        if self.dropout is not None:
+            x = self.dropout(x)
+
+        cls_scores = self.fc_cls(x)
+
+        cls_score = self.cvdm(cls_scores[:, 0, :], cls_scores[:, 1, :])
+
+        return cls_score
