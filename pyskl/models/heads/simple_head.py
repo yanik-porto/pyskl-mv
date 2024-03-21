@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from mmcv.cnn import normal_init
+import math
 
 from ..builder import HEADS
 from .base import BaseHead
@@ -13,10 +14,14 @@ def xavier_init(size):
     in_dim = size[0]
     xavier_stddev = 1. / torch.sqrt(in_dim / 2.)
     return torch.normal(size=size, std=xavier_stddev)
+    xavier_stddev = 1. / math.sqrt(in_dim / 2.)
+    return torch.normal(size=size, std=xavier_stddev, mean=0.0)
     # return tf.random_normal(shape=size, stddev=xavier_stddev)
 
 class CVDM(nn.Module):
     def __init__(self,  num_classes):
+        super(CVDM, self).__init__()
+
         self.num_classes = num_classes
 
         hcg_dim = 100 # graph classifier Cg() hidden layer dimension
@@ -510,22 +515,17 @@ class TSNHead(BaseHead):
                          **kwargs)
 
 @HEADS.register_module()
-class MVHeadCVDM(SimpleHead):
+class MVHeadCVDM(BaseHead):
 
     def __init__(self,
                  num_classes,
                  in_channels,
                  loss_cls=dict(type='CrossEntropyLoss'),
-                 dropout=0.,
+                 dropout=0.5,
                  init_std=0.01,
+                 mode='CVDM',
                  **kwargs):
-        super().__init__(num_classes,
-                         in_channels,
-                         loss_cls=loss_cls,
-                         dropout=dropout,
-                         init_std=init_std,
-                         mode='CVDM',
-                         **kwargs)
+        super().__init__(num_classes, in_channels, loss_cls, **kwargs)
         
         self.dropout_ratio = dropout
         self.init_std = init_std
