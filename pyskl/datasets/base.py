@@ -12,12 +12,13 @@ from mmcv.utils import print_log
 from torch.utils.data import Dataset
 
 from pyskl.smp import auto_mix2
-from ..core import mean_average_precision, mean_class_accuracy, top_k_accuracy, top_k_by_action, clustering_by_action, ActionResults, confusion_matrix
+from ..core import mean_average_precision, mean_class_accuracy, top_k_accuracy, top_k_by_action, clustering_by_action, ActionResults
 from .pipelines import Compose
 
 from collections import Counter
 import pandas as pd
 import csv
+from sklearn.metrics import confusion_matrix
 
 # def get_group(dataname):
 #         return dataname[0:4] + dataname[8:20]
@@ -302,7 +303,9 @@ class BaseDataset(Dataset, metaclass=ABCMeta):
 
             if metric == 'confusion_matrix':
                 pred = np.argmax(results, axis=1)
-                cf_mat = confusion_matrix(pred, gt_labels, num_labels=len(label_map)).astype(int)
+
+                cf_mat = confusion_matrix(gt_labels, pred, labels=[*range(len(label_map))]).astype(int)
+
                 df = pd.DataFrame(cf_mat)
                 df['Row Header'] = label_map
                 df = df[['Row Header'] + list(df.columns[:-1])]
