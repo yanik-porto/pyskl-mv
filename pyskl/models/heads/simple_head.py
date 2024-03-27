@@ -35,6 +35,8 @@ class CVDM(nn.Module):
         self.Classifier_g_b2 = nn.Parameter(torch.zeros(num_classes))
 
     def forward(self, p1, p2):
+        p1 = p1.unsqueeze(-1)
+        p2 = p2.unsqueeze(1)
         W_feature = torch.matmul(p1, p2)
         C_hw = W_feature.reshape((-1, self.num_classes * self.num_classes))
         C_h1 = self.activation(torch.matmul(C_hw, self.Classifier_g_W1) + self.Classifier_g_b1)
