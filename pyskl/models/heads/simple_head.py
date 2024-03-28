@@ -12,8 +12,6 @@ from torch_geometric.nn import GCNConv, GraphConv, Linear, global_mean_pool
 # network weights initialize
 def xavier_init(size):
     in_dim = size[0]
-    xavier_stddev = 1. / torch.sqrt(in_dim / 2.)
-    return torch.normal(size=size, std=xavier_stddev)
     xavier_stddev = 1. / math.sqrt(in_dim / 2.)
     return torch.normal(size=size, std=xavier_stddev, mean=0.0)
     # return tf.random_normal(shape=size, stddev=xavier_stddev)
@@ -516,68 +514,3 @@ class TSNHead(BaseHead):
                          mode='2D',
                          **kwargs)
 
-@HEADS.register_module()
-class MVHeadCVDM(BaseHead):
-
-    def __init__(self,
-                 num_classes,
-                 in_channels,
-                 loss_cls=dict(type='CrossEntropyLoss'),
-                 dropout=0.5,
-                 init_std=0.01,
-                 mode='CVDM',
-                 **kwargs):
-        super().__init__(num_classes, in_channels, loss_cls, **kwargs)
-        
-        self.dropout_ratio = dropout
-        self.init_std = init_std
-        if self.dropout_ratio != 0:
-            self.dropout = nn.Dropout(p=self.dropout_ratio)
-        else:
-            self.dropout = None
-
-        self.in_c = in_channels
-
-        self.n_views = 2
-        self.n_persons = 2
-        self.node_number = self.n_views * self.n_persons
-
-        self.cvdm = CVDM(num_classes=num_classes)
-        self.fc_cls = nn.Linear(self.in_c, num_classes)
-        
-    def init_weights(self):
-        """Initiate the parameters from scratch."""
-        normal_init(self.fc_cls, std=self.init_std)
-
-    def forward(self, x):
-        """Defines the computation performed at every call.
-
-        Args:
-            x (torch.Tensor): The input data.
-
-        Returns:
-            torch.Tensor: The classification scores for input samples.
-        """
-
-        pool = nn.AdaptiveAvgPool2d(1)
-        N, M, C, T, V = x.shape
-        x = x.reshape(N * M, C, T, V)
-        x = pool(x)
-
-        x = x.reshape(N, M, C)
-
-        # reshape by view
-        x = x.reshape(N, self.n_views, self.n_persons, C)
-
-        # mean on persons
-        x = x.mean(dim=2)
-
-        assert x.shape[2] == self.in_c
-        if self.dropout is not None:
-            x = self.dropout(x)
-
-        cls_scores = self.fc_cls(x)
-
-        cls_score = self.cvdm(cls_scores[:, 0, :], cls_scores[:, 1, :])
-
-        return cls_score
